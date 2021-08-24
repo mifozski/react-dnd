@@ -4,6 +4,7 @@ import dustbinCopyOrMove from './01-dustbin/copy-or-move'
 import dustbinMultipleTargets from './01-dustbin/multiple-targets'
 import dustbinSingleTarget from './01-dustbin/single-target'
 import dustbinSingleTargetInIframe from './01-dustbin/single-target-in-iframe'
+import dustbinCrossIframe from './01-dustbin/cross-iframe'
 import dustbinStressTest from './01-dustbin/stress-test'
 import dragAroundCustomDragLayer from './02-drag-around/custom-drag-layer'
 import dragAroundNaive from './02-drag-around/naive'
@@ -28,6 +29,7 @@ export const componentIndex: {
 	'dustbin-multiple-targets': dustbinMultipleTargets,
 	'dustbin-copy-or-move': dustbinCopyOrMove,
 	'dustbin-single-target-in-iframe': dustbinSingleTargetInIframe,
+	'dustbin-cross-iframe': dustbinCrossIframe,
 	'dustbin-stress-test': dustbinStressTest,
 	'drag-around-custom-drag-layer': dragAroundCustomDragLayer,
 	'drag-around-naive': dragAroundNaive,

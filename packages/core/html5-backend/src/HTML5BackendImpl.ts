@@ -57,6 +57,8 @@ export class HTML5BackendImpl implements Backend {
 	private asyncEndDragFrameId: number | null = null
 	private dragOverTargetIds: string[] | null = null
 
+	private windows: Window[] = []
+
 	public constructor(
 		manager: DragDropManager,
 		globalContext?: HTML5BackendContext,
@@ -84,37 +86,52 @@ export class HTML5BackendImpl implements Backend {
 		}
 	}
 
-	// public for test
-	public get window(): Window | undefined {
-		return this.options.window
-	}
 	public get document(): Document | undefined {
 		return this.options.document
 	}
 
+	public addWindow(window: Window) {
+		this.windows.push(window)
+		this.addEventListeners(window)
+	}
+
+	private _noWindows() {
+		return this.windows === undefined || this.windows === []
+	}
+
 	public setup(): void {
-		if (this.window === undefined) {
+		if (this.options && this.options.window) {
+			this.windows.push(this.options.window)
+		} else if (typeof window !== 'undefined') {
+			this.windows.push(window)
+		}
+
+		if (this._noWindows()) {
 			return
 		}
 
-		if (this.window.__isReactDndBackendSetUp) {
-			throw new Error('Cannot have two HTML5 backends at the same time.')
-		}
-		this.window.__isReactDndBackendSetUp = true
-		this.addEventListeners(this.window as Element)
+		this.windows?.forEach((wind, i) => {
+			if (wind.__isReactDndBackendSetUp) {
+				throw new Error('Cannot have two HTML5 backends at the same time.')
+			}
+			wind.__isReactDndBackendSetUp = true
+			this.addEventListeners(wind as Element)
+		})
 	}
 
 	public teardown(): void {
-		if (this.window === undefined) {
+		if (this._noWindows()) {
 			return
 		}
 
-		this.window.__isReactDndBackendSetUp = false
-		this.removeEventListeners(this.window as Element)
+		this.windows.forEach((wind) => {
+			wind.__isReactDndBackendSetUp = false
+			this.removeEventListeners(wind as Element)
+			if (this.asyncEndDragFrameId) {
+				wind.cancelAnimationFrame(this.asyncEndDragFrameId)
+			}
+		})
 		this.clearCurrentDragSourceNode()
-		if (this.asyncEndDragFrameId) {
-			this.window.cancelAnimationFrame(this.asyncEndDragFrameId)
-		}
 	}
 
 	public connectDragPreview(
@@ -177,6 +194,7 @@ export class HTML5BackendImpl implements Backend {
 		if (!target.addEventListener) {
 			return
 		}
+
 		target.addEventListener(
 			'dragstart',
 			this.handleTopDragStart as EventListener,
@@ -357,14 +375,21 @@ export class HTML5BackendImpl implements Backend {
 		//   * https://github.com/react-dnd/react-dnd/issues/869
 		//
 		this.mouseMoveTimeoutTimer = (setTimeout(() => {
-			return (
-				this.window &&
-				this.window.addEventListener(
+			this.windows?.forEach((wind) => {
+				wind.addEventListener(
 					'mousemove',
 					this.endDragIfSourceWasRemovedFromDOM,
 					true,
 				)
-			)
+			})
+			// return (
+			// 	this.window &&
+			// 	this.window.addEventListener(
+			// 		'mousemove',
+			// 		this.endDragIfSourceWasRemovedFromDOM,
+			// 		true,
+			// 	)
+			// )
 		}, MOUSE_MOVE_TIMEOUT) as any) as number
 	}
 
@@ -372,14 +397,14 @@ export class HTML5BackendImpl implements Backend {
 		if (this.currentDragSourceNode) {
 			this.currentDragSourceNode = null
 
-			if (this.window) {
-				this.window.clearTimeout(this.mouseMoveTimeoutTimer || undefined)
-				this.window.removeEventListener(
+			this.windows?.forEach((wind) => {
+				wind.clearTimeout(this.mouseMoveTimeoutTimer || undefined)
+				wind.removeEventListener(
 					'mousemove',
 					this.endDragIfSourceWasRemovedFromDOM,
 					true,
 				)
-			}
+			})
 
 			this.mouseMoveTimeoutTimer = null
 			return true
@@ -587,6 +612,11 @@ export class HTML5BackendImpl implements Backend {
 		if (this.dragOverTargetIds === null) {
 			this.dragOverTargetIds = []
 		}
+
+		if (this.dragOverTargetIds.includes(targetId)) {
+			return
+		}
+
 		this.dragOverTargetIds.unshift(targetId)
 	}
 

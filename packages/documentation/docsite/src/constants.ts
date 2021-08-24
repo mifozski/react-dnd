@@ -157,6 +157,10 @@ export const ExamplePages: PageGroup[] = [
 				location: '/examples/dustbin/iframe',
 				title: 'Within an iframe',
 			},
+			DUSTBIN_CROSS_IFRAME: {
+				location: '/examples/dustbin/cross-iframe',
+				title: 'Across the frame',
+			},
 			DUSTBIN_COPY_OR_MOVE: {
 				location: '/examples/dustbin/copy-or-move',
 				title: 'Copy or Move',

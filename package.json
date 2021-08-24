@@ -4,7 +4,7 @@
   "description": "React-DnD Monorepo",
   "repository": {
     "type": "git",
-    "url": "https://github.com/react-dnd/react-dnd.git"
+    "url": "https://github.com/mifozski/react-dnd.git"
   },
   "keywords": [
     "react",
