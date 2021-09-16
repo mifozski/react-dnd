@@ -30,12 +30,16 @@ export const Dustbin: React.FC = () => {
 		initialized.current = true
 	}, [])
 
-	const [{ droppableHover }, dropRef] = useDrop({
+	const [{ droppableHover }, dropRef] = useDrop<
+		DragObjectWithType & { name: string },
+		unknown,
+		{ droppableHover: boolean }
+	>({
 		accept: [ItemTypes.BOX, NativeTypes.URL],
 		canDrop: () => {
 			return true
 		},
-		drop: (item: DragObjectWithType, monitor: DropTargetMonitor) => {
+		drop: (item, monitor: DropTargetMonitor) => {
 			if (item.type === ItemTypes.BOX) {
 				const offset = monitor.getClientOffset()
 				if (offset) {
@@ -55,7 +59,6 @@ export const Dustbin: React.FC = () => {
 		},
 		collect: (monitor) => {
 			return {
-				canDrop: monitor.canDrop(),
 				droppableHover:
 					monitor.canDrop() && monitor.isOver() && Boolean(monitor.getItem()),
 			}
@@ -73,7 +76,11 @@ export const Dustbin: React.FC = () => {
 
 	useEffect(() => {
 		return () => {
-			dragDropManager?.backend.removeWindow(ceIFrameRef.current?.contentWindow)
+			if (ceIFrameRef.current?.contentWindow) {
+				dragDropManager
+					?.getBackend()
+					.removeWindow(ceIFrameRef.current.contentWindow)
+			}
 		}
 	}, [])
 
@@ -104,10 +111,15 @@ export const Dustbin: React.FC = () => {
 					const ceIFrame = parentIFrameWindow.current?.contentDocument?.getElementsByTagName(
 						'iframe',
 					)[0]
-					ceIFrameRef.current = ceIFrame
-					ceAPI.current = ceIFrameRef.current?.contentWindow?.EN
+					if (!ceIFrame?.contentWindow) {
+						return
+					}
 
-					dragDropManager?.backend.addWindow(ceIFrame.contentWindow)
+					ceIFrameRef.current = ceIFrame
+					const contentWindow = ceIFrame.contentWindow
+					ceAPI.current = ((contentWindow as unknown) as { EN: any }).EN
+
+					dragDropManager?.getBackend().addWindow(ceIFrame.contentWindow)
 
 					addEventListeners(ceIFrame.contentWindow, ceAPI.current)
 
@@ -119,7 +131,7 @@ export const Dustbin: React.FC = () => {
 }
 
 function setSelectionData(
-	clipboardData: ClipboardData | null,
+	clipboardData: any | null,
 	dataTarget: DataTransfer | null,
 ): void {
 	if (!clipboardData || !dataTarget) {
@@ -142,7 +154,7 @@ function addEventListeners(ceWindow: Window, ceAPI: any) {
 		}
 
 		if (e.dataTransfer.getData('PesoDrag')) {
-			const response: ClipboardData = ceAPI.queryCommandValueAndParse('copy', {
+			const response = ceAPI.queryCommandValueAndParse('copy', {
 				resources: true,
 			})
 			setSelectionData(response, e.dataTransfer)
