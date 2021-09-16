@@ -57,7 +57,7 @@ export class HTML5BackendImpl implements Backend {
 	private asyncEndDragFrameId: number | null = null
 	private dragOverTargetIds: string[] | null = null
 
-	private windows: Window[] = []
+	private extraWindows: Window[] = []
 
 	public constructor(
 		manager: DragDropManager,
@@ -68,6 +68,22 @@ export class HTML5BackendImpl implements Backend {
 		this.monitor = manager.getMonitor()
 		this.registry = manager.getRegistry()
 		this.enterLeaveCounter = new EnterLeaveCounter(this.isNodeInDocument)
+	}
+
+	public get windows() {
+		let windows = []
+
+		if (this.options && this.options.window) {
+			windows.push(this.options.window)
+		} else if (typeof window !== 'undefined') {
+			windows.push(window)
+		}
+
+		if (windows.length > 0 && this.extraWindows.length > 0) {
+			windows = [...windows, ...this.extraWindows]
+		}
+
+		return windows
 	}
 
 	/**
@@ -90,9 +106,25 @@ export class HTML5BackendImpl implements Backend {
 		return this.options.document
 	}
 
-	public addWindow(window: Window) {
-		this.windows.push(window)
-		this.addEventListeners(window)
+	public addWindow(wind: Window) {
+		this.extraWindows.push(wind)
+
+		if (wind.__isReactDndBackendSetUp) {
+			throw new Error('Cannot have two HTML5 backends at the same time.')
+		}
+		wind.__isReactDndBackendSetUp = true
+
+		this.addEventListeners(wind)
+	}
+
+	public removeWindow(wind: Window) {
+		const index = this.extraWindows.indexOf(wind)
+		if (index >= 0) {
+			this.extraWindows.splice(index, 1)
+		}
+
+		wind.__isReactDndBackendSetUp = false
+		this.removeEventListeners(wind)
 	}
 
 	private _noWindows() {
@@ -100,12 +132,6 @@ export class HTML5BackendImpl implements Backend {
 	}
 
 	public setup(): void {
-		if (this.options && this.options.window) {
-			this.windows.push(this.options.window)
-		} else if (typeof window !== 'undefined') {
-			this.windows.push(window)
-		}
-
 		if (this._noWindows()) {
 			return
 		}
@@ -429,8 +455,18 @@ export class HTML5BackendImpl implements Backend {
 		this.dragStartSourceIds.unshift(sourceId)
 	}
 
+	originatedInInternalWindow = false
+
 	public handleTopDragStart = (e: DragEvent): void => {
 		if (e.defaultPrevented) {
+			return
+		}
+
+		// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+		// @ts-ignore
+		const targetParentWindow = e.target?.ownerDocument.defaultView
+		if (this.extraWindows.includes(targetParentWindow)) {
+			this.originatedInInternalWindow = true
 			return
 		}
 
@@ -541,6 +577,8 @@ export class HTML5BackendImpl implements Backend {
 	}
 
 	public handleTopDragEndCapture = (): void => {
+		this.originatedInInternalWindow = false
+
 		if (this.clearCurrentDragSourceNode()) {
 			// Firefox can dispatch this event in an infinite loop
 			// if dragend handler does something like showing an alert.
@@ -609,6 +647,10 @@ export class HTML5BackendImpl implements Backend {
 	}
 
 	public handleDragOver(e: DragEvent, targetId: string): void {
+		if (this.originatedInInternalWindow) {
+			return
+		}
+
 		if (this.dragOverTargetIds === null) {
 			this.dragOverTargetIds = []
 		}
@@ -621,6 +663,10 @@ export class HTML5BackendImpl implements Backend {
 	}
 
 	public handleTopDragOver = (e: DragEvent): void => {
+		if (this.originatedInInternalWindow) {
+			return
+		}
+
 		const { dragOverTargetIds } = this
 		this.dragOverTargetIds = []
 
@@ -671,14 +717,14 @@ export class HTML5BackendImpl implements Backend {
 		if (!isLastLeave) {
 			return
 		}
-
-		if (this.isDraggingNativeItem()) {
-			this.endDragNativeItem()
-		}
 	}
 
 	public handleTopDropCapture = (e: DragEvent): void => {
 		this.dropTargetIds = []
+
+		if (this.originatedInInternalWindow) {
+			return
+		}
 		e.preventDefault()
 
 		if (this.isDraggingNativeItem()) {
@@ -693,6 +739,11 @@ export class HTML5BackendImpl implements Backend {
 	}
 
 	public handleTopDrop = (e: DragEvent): void => {
+		if (this.originatedInInternalWindow) {
+			this.originatedInInternalWindow = false
+			return
+		}
+
 		const { dropTargetIds } = this
 		this.dropTargetIds = []
 
